@@ -1,0 +1,45 @@
+package com.mirea.trpp.project.dao.impl;
+
+import com.mirea.trpp.project.dao.AbstractDao;
+import com.mirea.trpp.project.dao.entity.AbstractEntity;
+import com.mirea.trpp.project.util.IdCreatorForEntities;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public abstract class AbstractDaoImpl<T extends AbstractEntity> implements AbstractDao<T> {
+    private List<T> repository = new ArrayList<>();
+    private IdCreatorForEntities idCreatorForEntities = new IdCreatorForEntities();
+
+    public T getById(Long id) {
+        for (T entity : repository) {
+            if (entity.getId().equals(id)) {
+                return entity;
+            }
+        }
+        return null;
+    }
+
+    public List<T> getAll() {
+        return new ArrayList<>(repository);
+    }
+
+    public void setAll(List<T> repository) {
+        this.repository = repository;
+    }
+
+    public void deleteById(Long id) {
+        T maintenance = getById(id);
+        repository.remove(maintenance);
+    }
+
+    public void create(T entity) {
+        entity.setId(idCreatorForEntities.createId(entity.getClass(), (long) repository.size()));
+        repository.add(entity);
+    }
+
+    @Override
+    public int getTotalNumberOf() {
+        return repository.size();
+    }
+}

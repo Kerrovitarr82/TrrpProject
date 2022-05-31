@@ -1,0 +1,86 @@
+package com.mirea.trpp.project.service.impl;
+
+import com.mirea.trpp.project.controller.impl.SerializationControllerImpl;
+import com.mirea.trpp.project.dao.GuestDao;
+import com.mirea.trpp.project.dao.MaintenanceDao;
+import com.mirea.trpp.project.dao.RoomDao;
+import com.mirea.trpp.project.dao.entity.Guest;
+import com.mirea.trpp.project.dao.entity.Room;
+import com.mirea.trpp.project.util.GuestAlphabetComparator;
+import com.mirea.trpp.project.util.GuestDateComparatorAscending;
+import com.mirea.trpp.project.util.RoomStatusEnum;
+import com.mirea.trpp.project.service.GuestService;
+
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
+import java.util.stream.Stream;
+
+public class GuestServiceImpl extends AbstractServiceImpl<Guest, GuestDao> implements GuestService {
+    private RoomDao roomDao;
+    private GuestDao guestDao;
+    private MaintenanceDao maintenanceDao;
+    private static final int MS_TO_DAYS_DIVIDER = (1000 * 60 * 60 * 24);
+
+    public GuestServiceImpl(GuestDao defaultDao, RoomDao roomDao, GuestDao guestDao, MaintenanceDao maintenanceDao) {
+        super(defaultDao);
+        this.roomDao = roomDao;
+        this.guestDao = guestDao;
+        this.maintenanceDao = maintenanceDao;
+    }
+
+    @Override
+    public void deleteGuest(Long roomId) {
+        Room room = roomDao.getById(roomId);
+        for (Guest guest : room.getGuests()) {
+            guest.setRoom(null);
+            guestDao.deleteById(guest.getId());
+        }
+        roomDao.setGuests(roomId, null);
+        room.setStatus(RoomStatusEnum.FREE);
+    }
+
+    @Override
+    public int getTotalPriceForGuest(Long guestId) {
+        Guest guest = guestDao.getById(guestId);
+        Date firstDateOfGuest = guest.getFirstDay().getTime();
+        Date lastDateOfGuest = guest.getLastDay().getTime();
+        int total = (int) (guest.getRoom().getPrice() * ((lastDateOfGuest.getTime() - firstDateOfGuest.getTime()) / MS_TO_DAYS_DIVIDER + 1));
+        return total;
+    }
+
+    @Override
+    public int totalNumberOfGuests() {
+        return guestDao.getTotalNumberOf();
+    }
+
+    @Override
+    public Stream<Guest> getGuestSortedByNameByEvicDate() {
+        Comparator<Guest> guestComparator = new GuestAlphabetComparator().thenComparing(new GuestDateComparatorAscending());
+        return guestDao.getAll().stream().filter(guest -> guest.getRoom() != null).sorted(guestComparator);
+    }
+
+    @Override
+    public void guestSerialization(String fileName) throws IOException {
+        FileOutputStream fileOutputStream = new FileOutputStream(SerializationControllerImpl.PATH_TO_SER_FILE + fileName);
+        ObjectOutputStream objectOutputStream = new ObjectOutputStream(fileOutputStream);
+        objectOutputStream.writeObject(guestDao.getAll());
+        objectOutputStream.close();
+        fileOutputStream.close();
+    }
+
+    @Override
+    public void guestDeserialization(String fileName) throws IOException, ClassNotFoundException {
+        FileInputStream fileInputStream = new FileInputStream(SerializationControllerImpl.PATH_TO_SER_FILE + fileName);
+        ObjectInputStream objectInputStream = new ObjectInputStream(fileInputStream);
+        List<Guest> guests = (List<Guest>) objectInputStream.readObject();
+        guestDao.setAll(guests);
+        objectInputStream.close();
+        fileInputStream.close();
+    }
+}
